@@ -6,3 +6,6 @@ notes.md
 broker
 publisher
 subscriber
+
+# UNIX Socket Path Files
+pub.path
