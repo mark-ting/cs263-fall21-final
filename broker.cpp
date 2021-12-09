@@ -41,26 +41,29 @@ void Broker::process_queue()
     }
 }
 
-int connect_to_publisher() {
-    int pub_broker_fd;
+/* Returns a socket address for the publisher that listens for broker connections
+ */
+int setup_server() {
+    int pub_socket;
     size_t len;
-    struct sockaddr_un remote;
+    struct sockaddr_un pub;
 
     // Socket
-    pub_broker_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    assert(pub_broker_fd != -1);
+    pub_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+    assert(pub_socket != -1);
 
-    // Connect
-    std::cout << "Attempting to connect to publisher...\n";
+    pub.sun_family = AF_UNIX;
+    strncpy(pub.sun_path, PUB_PATH, strlen(PUB_PATH) + 1);
+    unlink(pub.sun_path);
 
-    remote.sun_family = AF_UNIX;
-    strcpy(remote.sun_path, PUB_PATH);
-    len = strlen(remote.sun_path) + sizeof(remote.sun_family) + 1;
-    assert(connect(pub_broker_fd, (struct sockaddr *)&remote, len) != -1);
+    // Bind
+    len = strlen(pub.sun_path) + sizeof(pub.sun_family) + 1;
+    assert(bind(pub_socket, (struct sockaddr *)&pub, len) != -1);
 
-    std::cout << "Connected to publisher on fd " << pub_broker_fd << std::endl;
+    // Listen
+    assert(listen(pub_socket, 5) != -1);
 
-    return pub_broker_fd;
+    return pub_socket;
 }
 
 /* Handles a connection with a publisher on fd `pub_fd
@@ -82,8 +85,16 @@ void handle_publisher_connection(int pub_fd) {
 }
 
 int main() {
-    int pub_fd = -1;
-    pub_fd = connect_to_publisher();
+    int broker_fd = -1;
+    broker_fd = setup_server();
+
+    struct sockaddr_un remote;
+    socklen_t t = sizeof(remote);
+    int pub_fd = 0;
+
+    pub_fd = accept(broker_fd, (struct sockaddr *)&remote, &t);
+
+    std::cout << "Connected Pub Socket: " << pub_fd << std::endl;
 
     handle_publisher_connection(pub_fd);
     close(pub_fd);
