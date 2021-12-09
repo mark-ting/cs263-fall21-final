@@ -39,3 +39,7 @@ void QueueServer::process_queue()
         std::cout << "Queue is empty!" << std::endl;
     }
 }
+
+int main() {
+    std::cout << "Hellos\n";
+}

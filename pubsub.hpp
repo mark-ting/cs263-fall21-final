@@ -6,13 +6,13 @@
 #include <unordered_map>
 #include <vector>
 
-typedef std::function<bool(Message)> Filter;
-
 struct Message
 {
     uint32_t topic;
     char content[512];
 };
+
+typedef std::function<bool(Message)> Filter;
 
 class QueueServer
 {
