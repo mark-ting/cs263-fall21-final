@@ -25,3 +25,5 @@ By default, all subscribers receive all messages since they have no content filt
 
 Common regex expressions to test include: 
 - ADD REGEX EXPRESSIONS
+
+Note that regex expression format is not validated in this version, so users should only input valid regex expressions. 

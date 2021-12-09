@@ -1,4 +1,4 @@
-all: broker publisher
+all: broker publisher subscriber
 
 # C++-compiler settings
 CC = g++ -ggdb3
@@ -11,8 +11,11 @@ O = 0
 	$(CC) -O$(O) -o $@ -c $<
 
 # Create executable
-broker: broker.o
+broker: broker.o pubsub.o
 	$(CC) -o $@ $^
 
-publisher: publisher.o
+publisher: publisher.o pubsub.o
+	$(CC) -o $@ $^
+
+subscriber: subscriber.o pubsub.o
 	$(CC) -o $@ $^

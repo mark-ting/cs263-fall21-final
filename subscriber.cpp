@@ -1,4 +1,4 @@
-#include "publisher.hpp"
+#include "subscriber.hpp"
 #include <cassert>
 #include <iostream>
 
@@ -9,7 +9,7 @@ void process_broker_messages(int broker_fd) {
     // input is from stdin. Do not output if piped in from file or from other fd
     char* prefix = "";
     if (isatty(fileno(stdin))) {
-        prefix = "publisher > ";
+        prefix = "subscriber > ";
     }
 
     Message send_message;

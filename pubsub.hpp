@@ -1,3 +1,6 @@
+#ifndef PUBSUB_H
+#define PUBSUB_H
+
 #include <cstdint>
 #include <functional>
 #include <regex>
@@ -21,3 +24,7 @@ struct Message
 };
 
 typedef std::function<bool(Message)> Filter;
+
+int connect_to_broker();
+
+#endif // PUBSUB_H

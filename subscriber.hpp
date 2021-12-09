@@ -1,3 +1,6 @@
+#ifndef SUB_H
+#define SUB_H
+
 #include "pubsub.hpp"
 
 class Subscriber
@@ -8,3 +11,5 @@ public:
 private:
     void consume(Message message);
 };
+
+#endif // SUB_H

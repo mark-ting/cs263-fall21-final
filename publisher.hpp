@@ -1,3 +1,6 @@
+#ifndef PUB_H
+#define PUB_H
+
 #include "pubsub.hpp"
 
 class Publisher
@@ -8,3 +11,5 @@ public:
 private:
     void publish(Message message);
 };
+
+#endif // PUB_H

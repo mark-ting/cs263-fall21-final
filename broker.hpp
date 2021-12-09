@@ -1,3 +1,6 @@
+#ifndef BROKER_H
+#define BROKER_H
+
 #include <queue>
 #include <unordered_map>
 
@@ -18,3 +21,5 @@ private:
     std::queue<Message> message_queue;
     std::unordered_map<uint32_t, Filter> filter_list;
 };
+
+#endif // BROKER_H
