@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <functional>
 #include <regex>
+#include <errno.h>
 // Sockets
 #include <sys/types.h>          
 #include <sys/socket.h>

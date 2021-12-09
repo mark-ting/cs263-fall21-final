@@ -3,6 +3,10 @@
 
 #include "pubsub.hpp"
 
+#define MAX_CLIENTS 100
+// Used connection constants
+#define UNUSED      -1
+
 class Broker
 {
 public:
