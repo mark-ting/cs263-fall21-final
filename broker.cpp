@@ -80,7 +80,6 @@ void handle_publisher_connection(int pub_fd) {
     do {
         length = recv(pub_fd, recv_message.content, MESSAGE_LEN, 0);
         std::cout << "Publisher Message: " << recv_message.content << std::endl;
-        break;
     } while (!done);
 }
 
