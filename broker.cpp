@@ -41,14 +41,14 @@ void Broker::process_queue()
     }
 }
 
-int main() {
-    int sockfd;
+int connect_to_publisher() {
+    int pub_broker_fd;
     size_t len;
     struct sockaddr_un remote;
 
     // Socket
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    assert(sockfd != -1);
+    pub_broker_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    assert(pub_broker_fd != -1);
 
     // Connect
     std::cout << "Attempting to connect to publisher...\n";
@@ -56,9 +56,36 @@ int main() {
     remote.sun_family = AF_UNIX;
     strcpy(remote.sun_path, PUB_PATH);
     len = strlen(remote.sun_path) + sizeof(remote.sun_family) + 1;
-    assert(connect(sockfd, (struct sockaddr *)&remote, len) != -1);
+    assert(connect(pub_broker_fd, (struct sockaddr *)&remote, len) != -1);
 
-    std::cout << "Connected to publisher\n";
+    std::cout << "Connected to publisher on fd " << pub_broker_fd << std::endl;
 
+    return pub_broker_fd;
+}
+
+/* Handles a connection with a publisher on fd `pub_fd
+ */
+void handle_publisher_connection(int pub_fd) {
+    int done = 0;
+    int length;
+
+    // Create two messages, one from which to read and one from which to receive
+    Message send_message;
+    Message recv_message;
+
+    // Read and print messages from publisher
+    do {
+        length = recv(pub_fd, recv_message.content, MESSAGE_LEN, 0);
+        std::cout << "Publisher Message: " << recv_message.content << std::endl;
+        break;
+    } while (!done);
+}
+
+int main() {
+    int pub_fd = -1;
+    pub_fd = connect_to_publisher();
+
+    handle_publisher_connection(pub_fd);
+    close(pub_fd);
     return 0;
 }

@@ -15,6 +15,7 @@ int setup_publisher() {
 
     pub.sun_family = AF_UNIX;
     strncpy(pub.sun_path, PUB_PATH, strlen(PUB_PATH) + 1);
+    unlink(pub.sun_path);
 
     // Bind
     len = strlen(pub.sun_path) + sizeof(pub.sun_family) + 1;
@@ -26,16 +27,27 @@ int setup_publisher() {
     return pub_socket;
 }
 
+/* Sends messages to a broker via `broker_socket` fd
+ */
+void send_to_broker(int broker_socket) {
+    Message send_message;
+    char* message = "This is some content";
+    strcpy(send_message.content, message);
+    assert(send(broker_socket, send_message.content, MESSAGE_LEN, 0) != -1);
+}
+
 int main() { 
     int pub_socket = setup_publisher();
 
     struct sockaddr_un remote;
     socklen_t t = sizeof(remote);
-    int client_socket = 0;
+    int broker_socket = 0;
 
-    client_socket = accept(pub_socket, (struct sockaddr *)&remote, &t);
+    broker_socket = accept(pub_socket, (struct sockaddr *)&remote, &t);
 
-    std::cout << "Client Socket: " << client_socket << std::endl;
+    std::cout << "Broker Socket: " << broker_socket << std::endl;
+
+    send_to_broker(broker_socket);
 
     return 0;
 }
