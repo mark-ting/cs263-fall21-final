@@ -1,19 +1,19 @@
-#include "pubsub.hpp"
+#include "broker.hpp"
 #include <iostream>
 
-void QueueServer::receive(uint32_t pub_id, Message message)
+void Broker::receive(uint32_t pub_id, Message message)
 {
     message_queue.push(message);
 }
 
-void QueueServer::notify(uint32_t sub_id, Message message)
+void Broker::notify(uint32_t sub_id, Message message)
 {
     // TODO: send queue()
     std::cout << "Queue is empty!" << std::endl;
     return;
 }
 
-void QueueServer::process_queue()
+void Broker::process_queue()
 {
     if (!message_queue.empty())
     {

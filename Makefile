@@ -1,4 +1,4 @@
-all: pubsub
+all: broker
 
 # C++-compiler settings
 CC = g++
@@ -11,5 +11,5 @@ O = 0
 	$(CC) -O$(O) -o $@ -c $<
 
 # Create executable
-pubsub: pubsub.o
+broker: broker.o
 	$(CC) -o $@ $^

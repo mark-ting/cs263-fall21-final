@@ -3,4 +3,6 @@ notes.md
 
 # Compiled files
 *.o
-pubsub
+broker
+publisher
+subscriber
