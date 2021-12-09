@@ -1,10 +1,13 @@
 #include <cstdint>
 #include <functional>
-#include <map>
-#include <queue>
 #include <regex>
-#include <unordered_map>
-#include <vector>
+// Sockets
+#include <sys/types.h>          
+#include <sys/socket.h>
+#include <sys/un.h>
+
+
+#define PUB_PATH "./pub.path"
 
 struct Message
 {

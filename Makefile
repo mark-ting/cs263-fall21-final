@@ -1,7 +1,7 @@
-all: broker
+all: broker publisher
 
 # C++-compiler settings
-CC = g++
+CC = g++ -ggdb3
 
 # Optimization level
 O = 0
@@ -12,4 +12,7 @@ O = 0
 
 # Create executable
 broker: broker.o
+	$(CC) -o $@ $^
+
+publisher: publisher.o
 	$(CC) -o $@ $^

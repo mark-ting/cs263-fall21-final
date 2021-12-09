@@ -1,5 +1,6 @@
 #include "broker.hpp"
 #include <iostream>
+#include <cassert>
 
 void Broker::receive(uint32_t pub_id, Message message)
 {
@@ -41,5 +42,23 @@ void Broker::process_queue()
 }
 
 int main() {
-    std::cout << "Hellos\n";
+    int sockfd;
+    size_t len;
+    struct sockaddr_un remote;
+
+    // Socket
+    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    assert(sockfd != -1);
+
+    // Connect
+    std::cout << "Attempting to connect to publisher...\n";
+
+    remote.sun_family = AF_UNIX;
+    strcpy(remote.sun_path, PUB_PATH);
+    len = strlen(remote.sun_path) + sizeof(remote.sun_family) + 1;
+    assert(connect(sockfd, (struct sockaddr *)&remote, len) != -1);
+
+    std::cout << "Connected to publisher\n";
+
+    return 0;
 }
