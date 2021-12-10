@@ -11,6 +11,7 @@ To run the code:
 1. Run `make all` to build all components
 
 In separate terminal windows for each step,
+
 2. Run `./broker` to start the broker server
 3. Run any number of instances of `./publisher` to run multiple publishers
 4. Run any number of instances of `./subscriber` to run multiple subscribers
@@ -21,9 +22,14 @@ To publish messages. In any terminal instance running `./publisher`, type any st
 To close the publisher-broker connection, type `Ctrl+C`. 
 
 ## Subscribers
-By default, all subscribers receive all messages since they have no content filters. To limit the scope of messages subscribed to, in any terminal running `./subscriber`, type a regular expression string which will add a filter. Now only published content which meets the filters will be routed.
+By default, all subscribers receive all messages since they have no content filters. To limit the scope of messages subscribed to, in any terminal running `./subscriber`, type a regular expression string which will add a filter. Now only published content which meets the AND of all the filters will be routed.
 
-Common regex expressions to test include: 
-- ADD REGEX EXPRESSIONS
+
+## Regex Examples
+Content String: `This is a content string`
+Regex:
+- Subscriber 1: `This`, `str|content` -> Receives
+- Subscriber 2: `This is not in the string` -> Does not receive
+- Subscriber 3: (no filters) -> Receives
 
 Note that regex expression format is not validated in this version, so users should only input valid regex expressions. 
