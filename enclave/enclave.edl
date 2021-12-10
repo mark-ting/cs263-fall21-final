@@ -16,6 +16,7 @@ enclave {
     
     trusted { 
         public void hello_world();
+        public void match_regex();
         public sgx_status_t enclave_ra_init(sgx_ec256_public_t key, [out] sgx_ra_context_t *ctx);
         public sgx_status_t enclave_ra_close(sgx_ra_context_t ctx);
     };

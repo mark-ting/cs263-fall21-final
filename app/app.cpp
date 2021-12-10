@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <chrono>
 
 #include <sgx_urts.h>
 #include <sgx_ukey_exchange.h>
@@ -159,6 +160,15 @@ int SGX_CDECL main(int argc, char *argv[]) {
     } else {
         printf("Attestation Success!\n");
     }
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // ENCLAVE PROCESSING
+    match_regex(global_eid);
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end - start;
+    printf("PROCESSING TIME FOR REGEX AND ENCLAVE: %f\n", diff.count());
 
     close(client_socket);
     close(server_socket);
