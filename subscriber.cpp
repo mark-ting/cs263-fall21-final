@@ -22,8 +22,9 @@ void process_broker_messages(int broker_fd) {
     char read_buffer[DEFAULT_STDIN_BUFFER_SIZE];
 
     // State client is a subscriber
-    strncpy(send_message.content, "sub", MESSAGE_LEN);
-    assert(send(broker_fd, send_message.content, MESSAGE_LEN, 0) != -1);
+    send_message.type = SUB;
+    strncpy(send_message.content, "Connecting SUB", MESSAGE_LEN);
+    assert(send(broker_fd, &send_message, sizeof(Message), 0) != -1);
 
     while (printf("%s", prefix), output_str = fgets(read_buffer,
            DEFAULT_STDIN_BUFFER_SIZE, stdin), !feof(stdin)) {
@@ -34,7 +35,7 @@ void process_broker_messages(int broker_fd) {
         msg_length = strlen(read_buffer);
         if (msg_length > 1) {
             strncpy(send_message.content, read_buffer, MESSAGE_LEN);
-            assert(send(broker_fd, send_message.content, MESSAGE_LEN, 0) != -1);
+            assert(send(broker_fd, &send_message, sizeof(Message), 0) != -1);
         }
     }
 }

@@ -78,8 +78,13 @@ Message receive_client_msg(int client_fd) {
     Message recv_message;
 
     // Read and print message from publisher
-    length = recv(client_fd, recv_message.content, MESSAGE_LEN, 0);
-    printf("Client Message (socket fd %d): %s\n", client_fd, recv_message.content);
+    length = recv(client_fd, &recv_message, sizeof(Message), 0);
+    assert(recv_message.type == SUB || recv_message.type == PUB);
+    if (recv_message.type == PUB) {
+        printf("Client (PUB) Message (socket fd %d): %s\n", client_fd, recv_message.content);
+    } else {
+        printf("Client (SUB) Message (socket fd %d): %s\n", client_fd, recv_message.content);
+    }
 
     recv_message.length = length;
     return recv_message;
@@ -107,7 +112,11 @@ Connection accept_connection(int master_socket) {
     assert(msg.type == SUB || msg.type == PUB);
     c.type = msg.type;
 
-    std::cout << "Newly Connected Client fd: " << fd << std::endl;
+    if (c.type == PUB) {
+        std::cout << "Newly Connected Client (Type: PUB) fd: " << fd << std::endl;
+    } else {
+        std::cout << "Newly Connected Client (Type: SUB) fd: " << fd << std::endl;
+    }
 
     c.fd = fd;
     return c;
