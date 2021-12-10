@@ -10,21 +10,15 @@
 // Used connection constants
 #define UNUSED          -1
 
-class Broker
-{
-public:
-    void process_queue();
-    void notify(uint32_t sub_id, Message message);
-    void receive(uint32_t pub_id, Message message);
-
-private:
-    std::queue<Message> message_queue;
-    std::unordered_map<uint32_t, Filter> filter_list;
-};
+typedef struct Filter {
+    Filter* next;
+    char regex[MESSAGE_LEN];
+} Filter;
 
 typedef struct Connection {
     int fd;
     ConnType type;
+    Filter* filter;
 } Connection;
 
 #endif // BROKER_H

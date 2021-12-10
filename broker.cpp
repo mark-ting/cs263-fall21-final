@@ -3,45 +3,6 @@
 #include <cassert>
 #include <sys/select.h>
 
-void Broker::receive(uint32_t pub_id, Message message)
-{
-    message_queue.push(message);
-}
-
-void Broker::notify(uint32_t sub_id, Message message)
-{
-    // TODO: send queue()
-    std::cout << "Queue is empty!" << std::endl;
-    return;
-}
-
-void Broker::process_queue()
-{
-    if (!message_queue.empty())
-    {
-        const auto message = message_queue.front();
-
-        // iterate through filters
-        for (auto const &sub_pair : filter_list)
-        {
-            const auto sub = sub_pair.first;
-            const auto filter = sub_pair.second;
-
-            if (filter(message))
-            {
-                notify(sub, message);
-            }
-        }
-
-        // remove message from queue
-        message_queue.pop();
-    }
-    else
-    {
-        std::cout << "Queue is empty!" << std::endl;
-    }
-}
-
 /* Returns a socket address for the publisher that listens for broker connections
  */
 int setup_broker() {
@@ -89,6 +50,7 @@ Message receive_client_msg(int client_fd) {
         printf("Client (PUB) Message (socket fd %d): %s\n", client_fd, recv_message.content);
     } else {
         printf("Client (SUB) Message (socket fd %d): %s\n", client_fd, recv_message.content);
+
     }
 
     return recv_message;
@@ -123,7 +85,38 @@ Connection accept_connection(int master_socket) {
     }
 
     c.fd = fd;
+    c.filter = NULL;
     return c;
+}
+
+/*  Filter helper: Frees a linked list of Filters starting from the root
+ */
+void free_filter_list(Filter* root) {
+    Filter* curr = root;
+    Filter* next;
+    while (curr) {
+        next = curr->next;
+        free(curr);
+        curr = next;
+    }
+}
+
+/*  Filter helper: Appends `filter` to the end of linked list of Connection c
+ */
+void add_filter_list(Connection* c, Filter* filter) {
+    filter->next = NULL;
+    if (!c->filter) {
+        c->filter = filter;
+        return;
+    }
+    Filter* last_node = c->filter;
+    while (last_node) {
+        if (!last_node->next) {
+            break;
+        }
+        last_node = last_node->next;
+    }
+    last_node->next = filter;
 }
 
 /*  Processes a client message. If from pub, publishes. If from sub, adds regex filter.
@@ -134,31 +127,38 @@ Connection accept_connection(int master_socket) {
 Message process_client_message(int fd, int idx, Connection* arr, int sz) {
     // idx cannot be more than max size of arr
     assert(idx < sz && idx >= 0);
-    Message msg = receive_client_msg(fd);
+    Message recv_msg = receive_client_msg(fd);
 
-    if (msg.length == 0) {
+    if (recv_msg.length == 0) {
         // Length 0 means end connection
-        return msg;
+        return recv_msg;
     }
 
     // Sending client type should equal stored type in connection arr
-    assert(msg.type == arr[idx].type);
+    assert(recv_msg.type == arr[idx].type);
 
-    Message send_msg;
-    send_msg.type = BROKER;
-    strncpy(send_msg.content, msg.content, MESSAGE_LEN);
-    send_msg.length = strlen(send_msg.content) + 1;
+    
     // Publish messages from publishers to subscribers
-    if (msg.type == PUB) {
+    if (recv_msg.type == PUB) {
+        Message send_msg;
+        send_msg.type = BROKER;
+        strncpy(send_msg.content, recv_msg.content, MESSAGE_LEN);
+        send_msg.length = strlen(send_msg.content) + 1;
         for (int i = 0; i < sz; i++) {
             if (arr[i].fd >= 0 && arr[i].type == SUB) {
                 // TODO: ADD IF FILTER CONDITIONS ARE MET
                 assert(send(arr[i].fd, &send_msg, sizeof(send_msg), 0) != -1);
             }
         }
+    } else {
+        // Add filter to filter list
+        Filter* f = (Filter*) malloc(sizeof(Filter));
+        strncpy(f->regex, recv_msg.content, MESSAGE_LEN);
+        f->regex[strcspn(f->regex, "\n")] = 0;
+        add_filter_list(&arr[idx], f);
     }
 
-    return msg;
+    return recv_msg;
 }
 
 /*  Handles connections from broker to multiple publishers
@@ -176,9 +176,11 @@ void handle_multiple_publishers(int master_socket) {
     for (int i = 1; i < MAX_CLIENTS; i++) {
         used_sockets[i].fd = -1;
         used_sockets[i].type = FREE;
+        used_sockets[i].filter = NULL;
     }
     used_sockets[0].fd = master_socket;
     used_sockets[0].type = BROKER;
+    used_sockets[0].filter = NULL;
 
     // Process ready fds with blocking `select`
     while (1) {
@@ -221,6 +223,8 @@ void handle_multiple_publishers(int master_socket) {
                         close(used_sockets[i].fd);
                         used_sockets[i].fd = -1; /* Connection is now closed */
                         used_sockets[i].type = FREE;
+                        free_filter_list(used_sockets[i].filter);
+                        used_sockets[i].filter = NULL;
                     }
                     break; 
                 }

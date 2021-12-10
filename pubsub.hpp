@@ -32,8 +32,6 @@ struct Message
     char content[MESSAGE_LEN];
 };
 
-typedef std::function<bool(Message)> Filter;
-
 int connect_to_broker();
 
 #endif // PUBSUB_H
