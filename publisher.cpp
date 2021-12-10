@@ -21,6 +21,10 @@ void process_broker_messages(int broker_fd) {
     // 2. read from stdin until eof.
     char read_buffer[DEFAULT_STDIN_BUFFER_SIZE];
 
+    // State client is a subscriber
+    strncpy(send_message.content, "pub", MESSAGE_LEN);
+    assert(send(broker_fd, send_message.content, MESSAGE_LEN, 0) != -1);
+
     while (printf("%s", prefix), output_str = fgets(read_buffer,
            DEFAULT_STDIN_BUFFER_SIZE, stdin), !feof(stdin)) {
         if (!output_str) {

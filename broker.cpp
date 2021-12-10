@@ -67,40 +67,50 @@ int setup_broker() {
     return master_socket;
 }
 
-/* Handles receives a message from a publisher on fd `pub_fd
+/* Handles receives a message from a client on fd `pub_fd
  * 
  * Returns: length of message received; 0 on orderly shutdown, -1 on error, o/w > 0
  */
-int receive_publisher_msg(int pub_fd) {
+Message receive_client_msg(int client_fd) {
     int length = 0;
 
     // Create two messages, one from which to read and one from which to receive
-    Message send_message;
     Message recv_message;
 
     // Read and print message from publisher
-    length = recv(pub_fd, recv_message.content, MESSAGE_LEN, 0);
-    printf("Publisher Message (socket fd %d): %s\n", pub_fd, recv_message.content);
+    length = recv(client_fd, recv_message.content, MESSAGE_LEN, 0);
+    printf("Client Message (socket fd %d): %s\n", client_fd, recv_message.content);
 
-    return length;
+    recv_message.length = length;
+    return recv_message;
 }
 
 /* Accepts a new socket connection via the master socket
  */
-int accept_connection(int master_socket) {
+Connection accept_connection(int master_socket) {
+    Connection c;
+
     struct sockaddr_un remote;
     socklen_t t = sizeof(remote);
     int fd = -1;
 
+    // Establish connection with client
     fd = accept(master_socket, (struct sockaddr*)&remote, &t);
     if (fd == -1) {
         printf("Error accepting connections. Errno %d\n", errno);
     }
     assert(fd != -1);
 
+    // Categorize client as pub or sub
+    Message msg = receive_client_msg(fd);
+    int msg_length = msg.length;
+    assert(msg.type == SUB || msg.type == PUB);
+    c.type = msg.type;
+
     std::cout << "Newly Connected Client fd: " << fd << std::endl;
 
-    return fd;
+    c.fd = fd;
+    return c;
 }
 
 /*  Handles connections from broker to multiple publishers
@@ -110,13 +120,17 @@ void handle_multiple_publishers(int master_socket) {
     fd_set readfds;
 
     // Used_sockets is an array containing the socket numbers in use
-    int used_sockets[MAX_CLIENTS];
+    Connection used_sockets[MAX_CLIENTS];
     int max_sd = master_socket;
     int client_socket, activity;
 
     // Initialize all connections and set the first one to server fd
-    memset(used_sockets, UNUSED, sizeof(int) * MAX_CLIENTS);
-    used_sockets[0] = master_socket;
+    for (int i = 1; i < MAX_CLIENTS; i++) {
+        used_sockets[i].fd = -1;
+        used_sockets[i].type = FREE;
+    }
+    used_sockets[0].fd = master_socket;
+    used_sockets[0].type = MASTER;
 
     // Process ready fds with blocking `select`
     while (1) {
@@ -128,9 +142,9 @@ void handle_multiple_publishers(int master_socket) {
 
         // Add child read sockets to set 
         for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (used_sockets[i] >= 0) {
-                max_sd = max_sd < used_sockets[i] ? used_sockets[i] : max_sd;
-                FD_SET(used_sockets[i], &readfds);
+            if (used_sockets[i].fd >= 0) {
+                max_sd = max_sd < used_sockets[i].fd ? used_sockets[i].fd : max_sd;
+                FD_SET(used_sockets[i].fd, &readfds);
             }
         }
 
@@ -139,24 +153,26 @@ void handle_multiple_publishers(int master_socket) {
 
         // If master socket, then incoming connection 
         if (FD_ISSET(master_socket, &readfds)) {
-            int fd = accept_connection(master_socket);
+            Connection c = accept_connection(master_socket);
             // add new socket to array of sockets 
             for (int i = 0; i < MAX_CLIENTS; i++) {  
-                if (used_sockets[i] == UNUSED) {
-                    used_sockets[i] = fd;  
-                    printf("Adding fd %d to list of sockets as index %d\n" , fd, i);  
+                if (used_sockets[i].fd == UNUSED) {
+                    used_sockets[i] = c;  
+                    printf("Adding fd %d to list of sockets as index %d\n" , c.fd, i);  
                     break;
                 }
             }
         } else {
             // else its some IO operation on some other socket
             for (int i = 0; i < MAX_CLIENTS; i++) {
-                int sd = used_sockets[i];
+                int sd = used_sockets[i].fd;
                 if (sd != UNUSED && FD_ISSET(sd, &readfds)) {
-                    int msg_length = receive_publisher_msg(sd);
+                    Message msg = receive_client_msg(sd);
+                    int msg_length = msg.length;
                     if (msg_length <= 0) {
-                        close(used_sockets[i]);
-                        used_sockets[i] = -1; /* Connection is now closed */
+                        close(used_sockets[i].fd);
+                        used_sockets[i].fd = -1; /* Connection is now closed */
+                        used_sockets[i].type = FREE;
                     }
                     break; 
                 }

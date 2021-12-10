@@ -6,9 +6,9 @@
 
 #include "pubsub.hpp"
 
-#define MAX_CLIENTS 100
+#define MAX_CLIENTS     100
 // Used connection constants
-#define UNUSED      -1
+#define UNUSED          -1
 
 class Broker
 {
@@ -21,5 +21,10 @@ private:
     std::queue<Message> message_queue;
     std::unordered_map<uint32_t, Filter> filter_list;
 };
+
+typedef struct Connection {
+    int fd;
+    ConnType type;
+} Connection;
 
 #endif // BROKER_H
