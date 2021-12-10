@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <regex>
 
 #include <sgx_utils.h>
 #include <sgx_tkey_exchange.h>
@@ -25,18 +26,20 @@ void hello_world() {
 
 void match_regex() {
     // single content so that we are mimicking only a single publisher message
-    char* content = "limitation";
+    const char* content = "limitation";
 
     // hardcoded for time constraints
-    regex_str = [".imitation", "l.mitation", "li.itation", "lim.tation", "limi.ation", "limit.tion", "limita.ion",
-        "limitat.on", "limitati.n", "limitatio."]
-    Filter* curr = filter_head;
+    const char* regex_str[10] = {".imitation", "l.mitation", "li.itation", "lim.tation", "limi.ation", "limit.tion", "limita.ion",
+        "limitat.on", "limitati.n", "limitatio."};
     for (int i=0; i < 10; i++) {
-        std::regex re(regex_str[i]);
-        int match = std::regex_search(content, re);
-        if (!match) {
-            return;
-        }
+	for (int j=0; j < 5; j++){
+	    ;
+	}
+	// std::regex re(regex_str[i]);
+        // int match = std::regex_search(content, re);
+        // if (!match) {
+        //    return;
+        // }
     }
     return;
 }

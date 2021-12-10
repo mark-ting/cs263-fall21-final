@@ -154,6 +154,7 @@ int SGX_CDECL main(int argc, char *argv[]) {
     printf("%s\n", buffer);
     send(client_socket, hello, strlen(hello), 0);
 
+
     int attestation = attest(global_eid, client_socket);
     if (attestation != 0) {
         printf("Attestation Failed\n");
@@ -162,7 +163,6 @@ int SGX_CDECL main(int argc, char *argv[]) {
     }
 
     auto start = std::chrono::high_resolution_clock::now();
-
     // ENCLAVE PROCESSING
     match_regex(global_eid);
     
