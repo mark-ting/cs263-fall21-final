@@ -85,7 +85,7 @@ void process_messages(int broker_fd) {
                 // Length 0 means broker end of socket closed -> close subscriber
                 break;
             }
-            printf("\nSubscriber message received: %s", recv_message.content);
+            printf("\nPublished message received: %s", recv_message.content);
             print_prefix();
         } else if (FD_ISSET(fileno(stdin), &readfds)) {
             // else, stdin

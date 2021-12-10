@@ -119,6 +119,21 @@ void add_filter_list(Connection* c, Filter* filter) {
     last_node->next = filter;
 }
 
+/*  Returns if all filters starting from `root` are sufficed by `content`
+ */
+bool filters_met(Filter* root, char* content) {
+    Filter* curr = root;
+    while (curr) {
+        std::regex re(curr->regex);
+        bool match = std::regex_search(content, re);
+        if (!match) {
+            return false;
+        }
+        curr = curr->next;
+    }
+    return true;
+}
+
 /*  Processes a client message. If from pub, publishes. If from sub, adds regex filter.
  *  Connection array `arr` of size `sz`. `fd` is at index `idx` in `arr`
  *
@@ -147,7 +162,12 @@ Message process_client_message(int fd, int idx, Connection* arr, int sz) {
         for (int i = 0; i < sz; i++) {
             if (arr[i].fd >= 0 && arr[i].type == SUB) {
                 // TODO: ADD IF FILTER CONDITIONS ARE MET
-                assert(send(arr[i].fd, &send_msg, sizeof(send_msg), 0) != -1);
+                char content[MESSAGE_LEN];
+                strncpy(content, recv_msg.content, MESSAGE_LEN);
+                content[strcspn(content, "\n")] = 0;
+                if (filters_met(arr[i].filter, content)) {
+                    assert(send(arr[i].fd, &send_msg, sizeof(send_msg), 0) != -1);
+                }
             }
         }
     } else {
