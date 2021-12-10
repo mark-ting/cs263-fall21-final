@@ -20,7 +20,7 @@
 typedef enum ConnType {
     PUB,
     SUB,
-    MASTER,
+    BROKER,
     FREE
 } ConnType;
 

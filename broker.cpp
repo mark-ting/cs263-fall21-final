@@ -74,19 +74,23 @@ int setup_broker() {
 Message receive_client_msg(int client_fd) {
     int length = 0;
 
-    // Create two messages, one from which to read and one from which to receive
     Message recv_message;
 
     // Read and print message from publisher
     length = recv(client_fd, &recv_message, sizeof(Message), 0);
+    recv_message.length = length;
     assert(recv_message.type == SUB || recv_message.type == PUB);
+    if (length == 0) {
+        // Msg 0 length means closed connection
+        return recv_message;
+    }
+
     if (recv_message.type == PUB) {
         printf("Client (PUB) Message (socket fd %d): %s\n", client_fd, recv_message.content);
     } else {
         printf("Client (SUB) Message (socket fd %d): %s\n", client_fd, recv_message.content);
     }
 
-    recv_message.length = length;
     return recv_message;
 }
 
@@ -122,6 +126,41 @@ Connection accept_connection(int master_socket) {
     return c;
 }
 
+/*  Processes a client message. If from pub, publishes. If from sub, adds regex filter.
+ *  Connection array `arr` of size `sz`. `fd` is at index `idx` in `arr`
+ *
+ *  Returns the message
+ */
+Message process_client_message(int fd, int idx, Connection* arr, int sz) {
+    // idx cannot be more than max size of arr
+    assert(idx < sz && idx >= 0);
+    Message msg = receive_client_msg(fd);
+
+    if (msg.length == 0) {
+        // Length 0 means end connection
+        return msg;
+    }
+
+    // Sending client type should equal stored type in connection arr
+    assert(msg.type == arr[idx].type);
+
+    Message send_msg;
+    send_msg.type = BROKER;
+    strncpy(send_msg.content, msg.content, MESSAGE_LEN);
+    send_msg.length = strlen(send_msg.content) + 1;
+    // Publish messages from publishers to subscribers
+    if (msg.type == PUB) {
+        for (int i = 0; i < sz; i++) {
+            if (arr[i].fd >= 0 && arr[i].type == SUB) {
+                // TODO: ADD IF FILTER CONDITIONS ARE MET
+                assert(send(arr[i].fd, &send_msg, sizeof(send_msg), 0) != -1);
+            }
+        }
+    }
+
+    return msg;
+}
+
 /*  Handles connections from broker to multiple publishers
  */
 void handle_multiple_publishers(int master_socket) {
@@ -139,7 +178,7 @@ void handle_multiple_publishers(int master_socket) {
         used_sockets[i].type = FREE;
     }
     used_sockets[0].fd = master_socket;
-    used_sockets[0].type = MASTER;
+    used_sockets[0].type = BROKER;
 
     // Process ready fds with blocking `select`
     while (1) {
@@ -176,7 +215,7 @@ void handle_multiple_publishers(int master_socket) {
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 int sd = used_sockets[i].fd;
                 if (sd != UNUSED && FD_ISSET(sd, &readfds)) {
-                    Message msg = receive_client_msg(sd);
+                    Message msg = process_client_message(sd, i, used_sockets, MAX_CLIENTS);
                     int msg_length = msg.length;
                     if (msg_length <= 0) {
                         close(used_sockets[i].fd);

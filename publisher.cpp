@@ -7,12 +7,15 @@
 void process_broker_messages(int broker_fd) {
     // Always output an interactive marker at the start of each command if the
     // input is from stdin. Do not output if piped in from file or from other fd
-    char* prefix = "";
+    char prefix[20]; 
     if (isatty(fileno(stdin))) {
-        prefix = "publisher > ";
+        strncpy(prefix, "publisher > ", 13);
+    } else {
+        strncpy(prefix, "", 2);
     }
 
     Message send_message;
+    Message recv_message;
     char* output_str = NULL;
     int msg_length = 0;
 
@@ -24,6 +27,7 @@ void process_broker_messages(int broker_fd) {
     // State client is a publisher
     send_message.type = PUB;
     strncpy(send_message.content, "Connecting PUB", MESSAGE_LEN);
+    send_message.length = strlen(send_message.content) + 1;
     assert(send(broker_fd, &send_message, sizeof(Message), 0) != -1);
 
     while (printf("%s", prefix), output_str = fgets(read_buffer,
