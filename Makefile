@@ -146,10 +146,6 @@ Enclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nodefau
 	-Wl,--version-script=enclave/enclave.lds \
 	-lsgx_tkey_exchange -lsgx_tcxx -lsgx_tcrypto -lsgx_tstdc -lsgx_tservice
 
-#-lcrypto -L$(SGXSSL_TRUSTED_LIB_PATH) \
-#	-Wl,--whole-archive -lsgx_tsgxssl -Wl,--no-whole-archive \
-#	-lsgx_tsgxssl_crypto -lsgx_pthread
-
 Enclave_Cpp_Objects := $(Enclave_Cpp_Files:.cpp=.o)
 
 Enclave_Name := enclave.so
@@ -186,7 +182,7 @@ all: .config_$(Build_Mode)_$(SGX_ARCH) $(App_Name) $(Enclave_Name)
 	@echo "You can also sign the enclave using an external signing tool."
 	@echo "To build the project in simulation mode set SGX_MODE=SIM. To build the project in prerelease mode set SGX_PRERELEASE=1 and SGX_MODE=HW."
 else
-all: .config_$(Build_Mode)_$(SGX_ARCH) $(App_Name) $(Signed_Enclave_Name)
+all: .config_$(Build_Mode)_$(SGX_ARCH) $(App_Name) $(Signed_Enclave_Name) mrenclave.bin
 ifeq ($(Build_Mode), HW_DEBUG)
 	@echo "The project has been built in debug hardware mode."
 else ifeq ($(Build_Mode), SIM_DEBUG)
@@ -250,7 +246,18 @@ $(Signed_Enclave_Name): $(Enclave_Name)
 	@$(SGX_ENCLAVE_SIGNER) sign -key enclave/enclave_private.pem -enclave $(Enclave_Name) -out $@ -config $(Enclave_Config_File)
 	@echo "SIGN =>  $@"
 
+######## MRENCLAVE ########
+
+enclave_sigstruct_raw: $(Signed_Enclave_Name)
+	@sgx_sign dump -cssfile enclave_sigstruct_raw -dumpfile dump.txt -enclave $(Signed_Enclave_Name)
+
+mrenclave: mrenclave.c
+	@$(CXX) $^ -o $@
+
+mrenclave.bin: mrenclave enclave_sigstruct_raw
+	@./mrenclave enclave_sigstruct_raw
+
 .PHONY: clean
 
 clean:
-	@rm -f .config_* $(App_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(App_Cpp_Objects) app/enclave_u.* $(Enclave_Cpp_Objects) enclave/enclave_t.*
+	@rm -f .config_* $(App_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(App_Cpp_Objects) app/enclave_u.* $(Enclave_Cpp_Objects) enclave/enclave_t.* enclave_sigstruct_raw mrenclave mrenclave.bin dump.txt

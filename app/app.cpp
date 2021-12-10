@@ -66,11 +66,6 @@ int attest(sgx_enclave_id_t eid, int sockfd) {
     sgx_ec256_public_t client_public_key;
     read(sockfd, &client_public_key, sizeof(client_public_key));
 
-    for (int i = 0; i < sizeof(client_public_key); i++) {
-        printf("%02x ", ((unsigned char *)&client_public_key)[i]);
-    }    
-    printf("\n");
-
     sgx_status_t status;
     sgx_status_t sgxrv; // ECALL return value
     sgx_ra_msg1_t msg1;
@@ -119,12 +114,14 @@ int attest(sgx_enclave_id_t eid, int sockfd) {
 		fprintf(stderr, "sgx_ra_proc_msg2: %08x\n", status);
 		return -1;
 	}
-
-    printf("msg3 size: %u\n", msg3_sz);
+ 
     send(sockfd, &msg3_sz, sizeof(uint32_t), 0);
     send(sockfd, msg3, msg3_sz, 0);
 
-    return 0;
+    int success;
+    read(sockfd, &success, sizeof(int));
+
+    return success;
 
 }
 
@@ -156,7 +153,12 @@ int SGX_CDECL main(int argc, char *argv[]) {
     printf("%s\n", buffer);
     send(client_socket, hello, strlen(hello), 0);
 
-    attest(global_eid, client_socket);
+    int attestation = attest(global_eid, client_socket);
+    if (attestation != 0) {
+        printf("Attestation Failed\n");
+    } else {
+        printf("Attestation Success!\n");
+    }
 
     close(client_socket);
     close(server_socket);

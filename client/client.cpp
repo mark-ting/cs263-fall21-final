@@ -14,9 +14,11 @@
 #include <iostream>
 #include "crypto.h"
 #include "base64.h"
+#include "rapidjson/document.h"
 
 #define PORT 8080
 
+using namespace rapidjson;
 using namespace std;
 
 // code adapted from https://github.com/intel/sgx-ra-sample/
@@ -67,14 +69,21 @@ void reverse_bytes(void *dest, void *src, size_t len) {
 	}
 }
 
-void print_bytes(unsigned char* obj) {
-    for (int i = 0; i < sizeof(obj); i++) {
+void print_bytes(unsigned char* obj, int sz) {
+    for (int i = 0; i < sz; i++) {
         printf("%02x ", obj[i]);
     }    
     printf("\n");
 }
 
-int attest(int sockfd) {
+size_t parse_json(char *ptr, size_t size, size_t nmemb, void *userdata) {
+    Document *document = (Document *)userdata;
+    document->Parse(ptr);
+    return nmemb; 
+}
+
+
+int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsigned char mk[16]) {
 
     send(sockfd, &public_key, sizeof(public_key), 0);
 
@@ -124,21 +133,6 @@ int attest(int sockfd) {
     msg2.kdf_id = 1;
  
     // Normally we would check the revocation list here; however, we ignore this for simplicity in this proof-of-concept
-    /*
-    curl = curl_easy_init();
-    string url = "https://api.trustedservices.intel.com/sgx/dev/attestation/v4/sigrl/";
-    char gid_str[9];
-    snprintf(gid_str, 9, "%08x", *(uint32_t*)msg1.gid);
-    url += gid_str;
-    cout << url + "\n";
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    CURLcode res = curl_easy_perform(curl); 
-    */
-
     msg2.sig_rl_size = 0;
 
     unsigned char digest[32], r[32], s[32], gb_ga[128];
@@ -153,57 +147,65 @@ int attest(int sockfd) {
 
     send(sockfd, &msg2, sizeof(msg2), 0);
      
-    // Validate msg3
+    // Process msg3
     
     sgx_ra_msg3_t *msg3;
-	uint32_t msg3_sz;
-    int rv;
-	char *buffer= NULL;	
+	uint32_t msg3_sz;	
 	
-
     read(sockfd, &msg3_sz, sizeof(uint32_t));
     msg3 = (sgx_ra_msg3_t *)malloc(msg3_sz);  
     read(sockfd, msg3, msg3_sz);
 
-    // Validate msg1.g_a == msg3.g_a 
+    // Verify msg1.g_a == msg3.g_a 
     if (CRYPTO_memcmp(&msg1.g_a, &msg3->g_a, sizeof(sgx_ec256_public_t))) {
         printf("ERROR: msg1.g_a and msg3.g_a keys don't match\n");
         free(msg3);
         return -1;
     }
 
-    // Validate MAC
+    // Verify MAC
     sgx_mac_t vrfymac;
     cmac128(smk, (unsigned char *)&msg3->g_a,
 		msg3_sz - sizeof(sgx_mac_t),
-		(unsigned char *)vrfymac);
-    //printf("msg3->mac: ");
-    //print_bytes((unsigned char*)&msg3->mac);
-    //printf("vrfymac: ");
-    //print_bytes((unsigned char*)&vrfymac);
+		(unsigned char *)vrfymac); 
     if (CRYPTO_memcmp(msg3->mac, vrfymac, sizeof(sgx_mac_t))) {
 		printf("Failed to verify msg3 MAC\n");
 		free(msg3);
 		return -1;
 	}
 
-    // Validate quote->epid_group_id == msg1.gid
+    // Verify quote->epid_group_id == msg1.gid
     sgx_quote_t *quote = (sgx_quote_t *)msg3->quote;
+    sgx_report_body_t *report_body = (sgx_report_body_t *)&quote->report_body;
     if (memcmp(msg1.gid, &quote->epid_group_id, sizeof(sgx_epid_group_id_t))) {
 		printf("Failed to verify EPID group id.\n");
 		free(msg3);
 		return -1;
 	}
 
+    // Verify that the first 64 bytes of the quote are SHA256(Ga||Gb||VK)
+    unsigned char vk[16];
+    unsigned char msg_rdata[144];
+    unsigned char vfy_rdata[64];
+    cmac128(kdk, (unsigned char *)("\x01VK\x00\x80\x00"), 6, vk);
+    memcpy(msg_rdata, &msg1.g_a, 64);
+	memcpy(&msg_rdata[64], &msg2.g_b, 64);
+	memcpy(&msg_rdata[128], vk, 16);
+    sha256_digest(msg_rdata, 144, vfy_rdata);
+    if (CRYPTO_memcmp((void *)vfy_rdata, (void *)&report_body->report_data, 32)) {
+        printf("Failed to verify report.\n");
+        free(msg3);
+        return -1;
+	}
 
-    // Validate report with IAS
+    // Verify report with IAS
 
     uint32_t quote_sz = msg3_sz - sizeof(sgx_ra_msg3_t);
     char *b64quote = base64_encode((char *)&msg3->quote, quote_sz);
 
     CURL *curl;
     curl = curl_easy_init();
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     curl_easy_setopt(curl, CURLOPT_URL, "https://api.trustedservices.intel.com/sgx/dev/attestation/v4/report");
 
     struct curl_slist *headers = NULL;
@@ -216,20 +218,69 @@ int attest(int sockfd) {
     body += "\" }";
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
 
+    Document response;
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, parse_json);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
     CURLcode res = curl_easy_perform(curl);
 
+    long http_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        printf("Failed to reach IAS service.\n");
+        free(msg3);
+        return -1;
+    }
+
+    string quote_status = response["isvEnclaveQuoteStatus"].GetString();
+    printf("Quote Status: %s\n", quote_status.c_str());
+    if (!quote_status.compare("OK") 
+            && !quote_status.compare("CONFIGURATION_NEEDED")
+            && !quote_status.compare("SW_HARDENING_NEEDED")
+            && !quote_status.compare("CONFIGURATION_AND_SW_HARDENING_NEEDED")) {
+        printf("Enclave not trusted.\n");
+        free(msg3);
+        return -1;
+    } 
+
     curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    // Verify MRENCLAVE
+    printf("Received MRENCLAVE: ");
+    print_bytes((unsigned char *)&report_body->mr_enclave, 32);
+    if (CRYPTO_memcmp((void *)&report_body->mr_enclave, (void *)mrenclave, 32)) {
+        printf("MRENCLAVE did not match.\n");
+        return -1;
+    }
+
+    printf("Attestation Success!\n");
+
+    //cmac128(kdk, (unsigned char *)("\x01MK\x00\x80\x00"), 6, mk);
+	//cmac128(kdk, (unsigned char *)("\x01SK\x00\x80\x00"), 6, sk);
 
     return 0;
 
 }
 
+// Arguments: server address, MRENCLAVE file
 int main(int argc, char *argv[]) {
 
     curl_global_init(CURL_GLOBAL_ALL);
 
-    if (argc < 2) {
+    if (argc < 3) {
         printf("Too few arguments\n");
+        return -1;
+    }
+
+    unsigned char mrenclave[32];
+    FILE *fp = fopen(argv[2], "rb");
+    if (!fp) {
+        printf("Failed to open MRENCLAVE file\n");
+        return -1;
+    }
+    if (fread(mrenclave, 1, 32, fp) != 32) {
+        printf("failed to read MRENCLAVE file\n");
         return -1;
     }
 
@@ -260,7 +311,8 @@ int main(int argc, char *argv[]) {
     read(sockfd, buffer, 1024);
     printf("%s\n", buffer);
 
-    attest(sockfd);
+    int attestation = attest(sockfd, mrenclave);
+    send(sockfd, &attestation, sizeof(int), 0);
     
     close(sockfd);
 
