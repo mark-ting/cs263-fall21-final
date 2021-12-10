@@ -1,4 +1,6 @@
+#include "broker.hpp"
 #include "publisher.hpp"
+#include <arpa/inet.h>
 #include <cassert>
 #include <iostream>
 
@@ -45,8 +47,7 @@ void process_broker_messages(int broker_fd) {
 }
 
 int main() { 
-    int broker_fd;
-    broker_fd = connect_to_broker();
+    int broker_fd = connect_to_broker();
 
     process_broker_messages(broker_fd);
     close(broker_fd);

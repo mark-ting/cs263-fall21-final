@@ -9,6 +9,7 @@
 #define MAX_CLIENTS     100
 // Used connection constants
 #define UNUSED          -1
+#define PORT            8080
 
 typedef struct Filter {
     Filter* next;
