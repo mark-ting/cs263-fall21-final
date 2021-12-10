@@ -1,5 +1,6 @@
 #include "broker.hpp"
 #include <cassert>
+#include <chrono>
 #include <arpa/inet.h>
 #include <iostream>
 #include <sys/select.h>
@@ -157,6 +158,7 @@ Message process_client_message(int fd, int idx, Connection* arr, int sz) {
     
     // Publish messages from publishers to subscribers
     if (recv_msg.type == PUB) {
+        auto start = std::chrono::high_resolution_clock::now();
         Message send_msg;
         send_msg.type = BROKER;
         strncpy(send_msg.content, recv_msg.content, MESSAGE_LEN);
@@ -172,6 +174,9 @@ Message process_client_message(int fd, int idx, Connection* arr, int sz) {
                 }
             }
         }
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff = end - start;
+        printf("PROCESSING TIME: %f\n", diff.count());
     } else {
         // Add filter to filter list
         Filter* f = (Filter*) malloc(sizeof(Filter));
