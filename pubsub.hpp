@@ -1,45 +1,37 @@
+#ifndef PUBSUB_H
+#define PUBSUB_H
+
 #include <cstdint>
 #include <functional>
-#include <map>
-#include <queue>
 #include <regex>
-#include <unordered_map>
-#include <vector>
+#include <errno.h>
+// Sockets
+#include <sys/types.h>          
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 
-typedef std::function<bool(Message)> Filter;
+// Maximum input string length from pub/sub client stdin
+// Should equal `MESSAGE_LEN`
+#define DEFAULT_STDIN_BUFFER_SIZE       512
+#define MESSAGE_LEN                     512
+#define PUB_PATH                        "./pub.path"
+
+typedef enum ConnType {
+    PUB,
+    SUB,
+    BROKER,
+    FREE
+} ConnType;
 
 struct Message
 {
     uint32_t topic;
-    char content[512];
+    ConnType type;
+    int length;
+    char content[MESSAGE_LEN];
 };
 
-class QueueServer
-{
-public:
-    void process_queue();
-    void notify(uint32_t sub_id, Message message);
-    void receive(uint32_t pub_id, Message message);
+int connect_to_broker();
 
-private:
-    std::queue<Message> message_queue;
-    std::unordered_map<uint32_t, Filter> filter_list;
-};
-
-class Subscriber
-{
-public:
-    uint32_t id;
-
-private:
-    void consume(Message message);
-};
-
-class Publisher
-{
-public:
-    uint32_t id;
-
-private:
-    void publish(Message message);
-};
+#endif // PUBSUB_H

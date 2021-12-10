@@ -1,0 +1,11 @@
+# Bryan's Notes
+notes.md
+
+# Compiled files
+*.o
+broker
+publisher
+subscriber
+
+# UNIX Socket Path Files
+pub.path

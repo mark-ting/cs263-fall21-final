@@ -1,41 +1,27 @@
 #include "pubsub.hpp"
+#include <cassert>
 #include <iostream>
 
-void QueueServer::receive(uint32_t pub_id, Message message)
-{
-    message_queue.push(message);
-}
+/* Connects to broker server
+ */
+int connect_to_broker() {
+    int broker_fd;
+    size_t len;
+    struct sockaddr_un remote;
 
-void QueueServer::notify(uint32_t sub_id, Message message)
-{
-    // TODO: send queue()
-    std::cout << "Queue is empty!" << std::endl;
-    return;
-}
+    // Socket
+    broker_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    assert(broker_fd != -1);
 
-void QueueServer::process_queue()
-{
-    if (!message_queue.empty())
-    {
-        const auto message = message_queue.front();
+    // Connect
+    std::cout << "Attempting to connect to broker...\n";
 
-        // iterate through filters
-        for (auto const &sub_pair : filter_list)
-        {
-            const auto sub = sub_pair.first;
-            const auto filter = sub_pair.second;
+    remote.sun_family = AF_UNIX;
+    strcpy(remote.sun_path, PUB_PATH);
+    len = strlen(remote.sun_path) + sizeof(remote.sun_family) + 1;
+    assert(connect(broker_fd, (struct sockaddr *)&remote, len) != -1);
 
-            if (filter(message))
-            {
-                notify(sub, message);
-            }
-        }
+    std::cout << "Connected to broker on fd " << broker_fd << std::endl;
 
-        // remove message from queue
-        message_queue.pop();
-    }
-    else
-    {
-        std::cout << "Queue is empty!" << std::endl;
-    }
+    return broker_fd;
 }
