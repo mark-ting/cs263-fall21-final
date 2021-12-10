@@ -83,7 +83,7 @@ size_t parse_json(char *ptr, size_t size, size_t nmemb, void *userdata) {
 }
 
 
-int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsigned char mk[16]) {
+int attest(int sockfd, unsigned char mrenclave[32], unsigned char mk[16], unsigned char sk[16]) {
 
     send(sockfd, &public_key, sizeof(public_key), 0);
 
@@ -97,7 +97,7 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsign
 
     if (msg01.msg0_extended_epid_group_id != 0) {
 		printf("Invalid EPID Group ID\n");
-		return -1;
+		return 0;
 	}
 
     sgx_ra_msg2_t msg2;
@@ -160,7 +160,7 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsign
     if (CRYPTO_memcmp(&msg1.g_a, &msg3->g_a, sizeof(sgx_ec256_public_t))) {
         printf("ERROR: msg1.g_a and msg3.g_a keys don't match\n");
         free(msg3);
-        return -1;
+        return 0;
     }
 
     // Verify MAC
@@ -171,7 +171,7 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsign
     if (CRYPTO_memcmp(msg3->mac, vrfymac, sizeof(sgx_mac_t))) {
 		printf("Failed to verify msg3 MAC\n");
 		free(msg3);
-		return -1;
+		return 0;
 	}
 
     // Verify quote->epid_group_id == msg1.gid
@@ -180,7 +180,7 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsign
     if (memcmp(msg1.gid, &quote->epid_group_id, sizeof(sgx_epid_group_id_t))) {
 		printf("Failed to verify EPID group id.\n");
 		free(msg3);
-		return -1;
+		return 0;
 	}
 
     // Verify that the first 64 bytes of the quote are SHA256(Ga||Gb||VK)
@@ -195,7 +195,7 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsign
     if (CRYPTO_memcmp((void *)vfy_rdata, (void *)&report_body->report_data, 32)) {
         printf("Failed to verify report.\n");
         free(msg3);
-        return -1;
+        return 0;
 	}
 
     // Verify report with IAS
@@ -229,7 +229,7 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsign
     if (http_code != 200) {
         printf("Failed to reach IAS service.\n");
         free(msg3);
-        return -1;
+        return 0;
     }
 
     string quote_status = response["isvEnclaveQuoteStatus"].GetString();
@@ -240,7 +240,7 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsign
             && !quote_status.compare("CONFIGURATION_AND_SW_HARDENING_NEEDED")) {
         printf("Enclave not trusted.\n");
         free(msg3);
-        return -1;
+        return 0;
     } 
 
     curl_slist_free_all(headers);
@@ -251,15 +251,15 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char sk[16], unsign
     print_bytes((unsigned char *)&report_body->mr_enclave, 32);
     if (CRYPTO_memcmp((void *)&report_body->mr_enclave, (void *)mrenclave, 32)) {
         printf("MRENCLAVE did not match.\n");
-        return -1;
+        return 0;
     }
 
     printf("Attestation Success!\n");
 
-    //cmac128(kdk, (unsigned char *)("\x01MK\x00\x80\x00"), 6, mk);
-	//cmac128(kdk, (unsigned char *)("\x01SK\x00\x80\x00"), 6, sk);
+    cmac128(kdk, (unsigned char *)("\x01MK\x00\x80\x00"), 6, mk);
+	cmac128(kdk, (unsigned char *)("\x01SK\x00\x80\x00"), 6, sk);
 
-    return 0;
+    return 1;
 
 }
 
@@ -311,8 +311,18 @@ int main(int argc, char *argv[]) {
     read(sockfd, buffer, 1024);
     printf("%s\n", buffer);
 
-    int attestation = attest(sockfd, mrenclave);
+    unsigned char mk[16], sk[16];
+    int attestation = attest(sockfd, mrenclave, mk, sk);
     send(sockfd, &attestation, sizeof(int), 0);
+
+    unsigned char mkhash[32], skhash[32];
+    sha256_digest(mk, 16, mkhash);
+    sha256_digest(sk, 16, skhash);
+    
+    printf("MK hash: ");
+    print_bytes((unsigned char*)mkhash, 32);
+    printf("SK hash: ");
+    print_bytes((unsigned char*)skhash, 32);
     
     close(sockfd);
 

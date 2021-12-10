@@ -17,6 +17,13 @@
 
 sgx_enclave_id_t global_eid = 0;
 
+void print_bytes(unsigned char* obj, int sz) {
+    for (int i = 0; i < sz; i++) {
+        printf("%02x ", obj[i]);
+    }
+    printf("\n");
+}
+
 int initialize_enclave(void) {  // TODO: save launch token to file
 
     sgx_launch_token_t token = {0};
@@ -59,7 +66,7 @@ int setup_server(struct sockaddr_in addr) {
 }
 
 // Code adapted from https://github.com/intel/sgx-ra-sample
-int attest(sgx_enclave_id_t eid, int sockfd) {
+int attest(sgx_enclave_id_t eid, int sockfd, sgx_ra_context_t* ra_ctx) {
 
     char buffer[BUFSIZ] = {0};
 
@@ -73,30 +80,29 @@ int attest(sgx_enclave_id_t eid, int sockfd) {
 	sgx_ra_msg3_t *msg3 = NULL;	
 	uint32_t msg0_extended_epid_group_id = 0;
 	uint32_t msg3_sz;
-    sgx_ra_context_t ra_ctx = 0xdeadbeef;
 
     // msg0
     
-    status = enclave_ra_init(eid, &sgxrv, client_public_key, &ra_ctx);
+    status = enclave_ra_init(eid, &sgxrv, client_public_key, ra_ctx);
     if (status != SGX_SUCCESS) {
         fprintf(stderr, "enclave_ra_init: %08x\n", status);
-        return -1;
+        return 0;
     }
 
     status = sgx_get_extended_epid_group_id(&msg0_extended_epid_group_id);
     if ( status != SGX_SUCCESS) {
-		enclave_ra_close(eid, &sgxrv, ra_ctx);
+		enclave_ra_close(eid, &sgxrv, *ra_ctx);
 		fprintf(stderr, "sgx_get_extended_epid_group_id: %08x\n", status);
-		return -1;
+		return 0;
 	}
 
     // msg1
 
-    status = sgx_ra_get_msg1(ra_ctx, eid, sgx_ra_get_ga, &msg1);
+    status = sgx_ra_get_msg1(*ra_ctx, eid, sgx_ra_get_ga, &msg1);
 	if (status != SGX_SUCCESS) {
-		enclave_ra_close(eid, &sgxrv, ra_ctx);
+		enclave_ra_close(eid, &sgxrv, *ra_ctx);
 		fprintf(stderr, "sgx_ra_get_msg1: %08x\n", status);
-		return -1;
+		return 0;
 	}
 
     send(sockfd, &msg0_extended_epid_group_id, sizeof(msg0_extended_epid_group_id), 0);
@@ -106,13 +112,13 @@ int attest(sgx_enclave_id_t eid, int sockfd) {
 
     read(sockfd, &msg2, sizeof(sgx_ra_msg2_t));
 
-    status = sgx_ra_proc_msg2(ra_ctx, eid, 
+    status = sgx_ra_proc_msg2(*ra_ctx, eid, 
             sgx_ra_proc_msg2_trusted, sgx_ra_get_msg3_trusted, &msg2, 
             sizeof(sgx_ra_msg2_t), &msg3, &msg3_sz);
     if (status != SGX_SUCCESS) {
-		enclave_ra_close(eid, &sgxrv, ra_ctx);
+		enclave_ra_close(eid, &sgxrv, *ra_ctx);
 		fprintf(stderr, "sgx_ra_proc_msg2: %08x\n", status);
-		return -1;
+		return 0;
 	}
  
     send(sockfd, &msg3_sz, sizeof(uint32_t), 0);
@@ -124,8 +130,6 @@ int attest(sgx_enclave_id_t eid, int sockfd) {
     return success;
 
 }
-
-
 
 int SGX_CDECL main(int argc, char *argv[]) {
 
@@ -153,11 +157,18 @@ int SGX_CDECL main(int argc, char *argv[]) {
     printf("%s\n", buffer);
     send(client_socket, hello, strlen(hello), 0);
 
-    int attestation = attest(global_eid, client_socket);
-    if (attestation != 0) {
-        printf("Attestation Failed\n");
-    } else {
+    sgx_ra_context_t ra_ctx = 0xdeadbeef;
+    int attestation = attest(global_eid, client_socket, &ra_ctx);
+    if (attestation) {
         printf("Attestation Success!\n");
+        sgx_sha256_hash_t mkhash, skhash;
+        enclave_ra_get_key_hash(global_eid, ra_ctx, &mkhash, &skhash);
+        printf("MK hash: ");
+        print_bytes((unsigned char*)mkhash, 32);
+        printf("SK hash: ");
+        print_bytes((unsigned char*)skhash, 32);
+    } else {
+        printf("Attestation Failed.\n"); 
     }
 
     close(client_socket);

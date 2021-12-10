@@ -23,6 +23,20 @@ void hello_world() {
     printf("Hello World!\n"); 
 }
 
+void enclave_ra_get_key_hash(sgx_ra_context_t ctx, sgx_sha256_hash_t *mkhash, sgx_sha256_hash_t *skhash) {
+
+    sgx_ra_key_128_t key;
+
+    sgx_ra_get_keys(ctx, SGX_RA_KEY_MK, &key);
+    sgx_sha256_msg((const uint8_t *) &key, sizeof(key), (sgx_sha256_hash_t *)mkhash);
+
+    sgx_ra_get_keys(ctx, SGX_RA_KEY_SK, &key);
+    sgx_sha256_msg((const uint8_t *) &key, sizeof(key), (sgx_sha256_hash_t *)skhash);
+
+    memset(key, 0, sizeof(key));
+
+}
+
 sgx_status_t enclave_ra_init(sgx_ec256_public_t key, sgx_ra_context_t *ctx) {
     return sgx_ra_init(&key, 0, ctx);
 }
