@@ -199,7 +199,7 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char mk[16], unsign
 	}
 
     // Verify report with IAS
-
+    
     uint32_t quote_sz = msg3_sz - sizeof(sgx_ra_msg3_t);
     char *b64quote = base64_encode((char *)&msg3->quote, quote_sz);
 
@@ -234,10 +234,10 @@ int attest(int sockfd, unsigned char mrenclave[32], unsigned char mk[16], unsign
 
     string quote_status = response["isvEnclaveQuoteStatus"].GetString();
     printf("Quote Status: %s\n", quote_status.c_str());
-    if (!quote_status.compare("OK") 
-            && !quote_status.compare("CONFIGURATION_NEEDED")
-            && !quote_status.compare("SW_HARDENING_NEEDED")
-            && !quote_status.compare("CONFIGURATION_AND_SW_HARDENING_NEEDED")) {
+    if (quote_status.compare("OK") 
+            && quote_status.compare("CONFIGURATION_NEEDED")
+            && quote_status.compare("SW_HARDENING_NEEDED")
+            && quote_status.compare("CONFIGURATION_AND_SW_HARDENING_NEEDED")) {
         printf("Enclave not trusted.\n");
         free(msg3);
         return 0;
@@ -315,14 +315,18 @@ int main(int argc, char *argv[]) {
     int attestation = attest(sockfd, mrenclave, mk, sk);
     send(sockfd, &attestation, sizeof(int), 0);
 
-    unsigned char mkhash[32], skhash[32];
-    sha256_digest(mk, 16, mkhash);
-    sha256_digest(sk, 16, skhash);
+    if (attestation) {
+
+        unsigned char mkhash[32], skhash[32];
+        sha256_digest(mk, 16, mkhash);
+        sha256_digest(sk, 16, skhash);
     
-    printf("MK hash: ");
-    print_bytes((unsigned char*)mkhash, 32);
-    printf("SK hash: ");
-    print_bytes((unsigned char*)skhash, 32);
+        printf("MK hash: ");
+        print_bytes((unsigned char*)mkhash, 32);
+        printf("SK hash: ");
+        print_bytes((unsigned char*)skhash, 32);
+
+    }
     
     close(sockfd);
 
