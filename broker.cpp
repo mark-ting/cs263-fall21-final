@@ -1,26 +1,30 @@
 #include "broker.hpp"
-#include <iostream>
 #include <cassert>
+#include <chrono>
+#include <arpa/inet.h>
+#include <iostream>
 #include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
 /* Returns a socket address for the publisher that listens for broker connections
  */
 int setup_broker() {
     int master_socket;
     size_t len;
-    struct sockaddr_un pub;
+    struct sockaddr_in pub;
 
     // Socket
-    master_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+    master_socket = socket(AF_INET, SOCK_STREAM, 0);
     assert(master_socket != -1);
 
-    pub.sun_family = AF_UNIX;
-    strncpy(pub.sun_path, PUB_PATH, strlen(PUB_PATH) + 1);
-    unlink(pub.sun_path);
+    // pub sets struct values for binding to correct socket
+    pub.sin_family = AF_INET;
+    pub.sin_addr.s_addr = htonl(INADDR_ANY);
+    pub.sin_port = htons(PORT);
 
     // Bind
-    len = strlen(pub.sun_path) + sizeof(pub.sun_family) + 1;
-    assert(bind(master_socket, (struct sockaddr *)&pub, len) != -1);
+    assert(bind(master_socket, (struct sockaddr *)&pub, sizeof(pub)) != -1);
 
     // Listen
     assert(listen(master_socket, 5) != -1);
@@ -50,7 +54,6 @@ Message receive_client_msg(int client_fd) {
         printf("Client (PUB) Message (socket fd %d): %s\n", client_fd, recv_message.content);
     } else {
         printf("Client (SUB) Message (socket fd %d): %s\n", client_fd, recv_message.content);
-
     }
 
     return recv_message;
@@ -155,6 +158,7 @@ Message process_client_message(int fd, int idx, Connection* arr, int sz) {
     
     // Publish messages from publishers to subscribers
     if (recv_msg.type == PUB) {
+        auto start = std::chrono::high_resolution_clock::now();
         Message send_msg;
         send_msg.type = BROKER;
         strncpy(send_msg.content, recv_msg.content, MESSAGE_LEN);
@@ -170,6 +174,9 @@ Message process_client_message(int fd, int idx, Connection* arr, int sz) {
                 }
             }
         }
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff = end - start;
+        printf("PROCESSING TIME: %f\n", diff.count());
     } else {
         // Add filter to filter list
         Filter* f = (Filter*) malloc(sizeof(Filter));
